@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Netflix IMDb & Rotten Tomatoes Ratings",
+  "version": "1.0.0",
+  "description": "Displays IMDb and Rotten Tomatoes ratings directly on Netflix thumbnails and detail modals.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.omdbapi.com/*",
+    "https://*.netflix.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.netflix.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "styles.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Netflix Ratings Settings"
+  }
+}
