@@ -14,6 +14,11 @@
 
 ## Preview
 
+### Netflix Thumbnail Row Badges
+Floating badges appear smoothly on thumbnail cards after a 250ms hover (or instantly if cached), showing IMDb, Rotten Tomatoes, and color-coded Metacritic scores:
+
+![CritiPeek Badges on Netflix Thumbnails](assets/preview-netflix-thumbnails.jpg)
+
 ### Netflix Detail & Preview Modal Badge
 Displays IMDb score (with direct clickable link to IMDb), Rotten Tomatoes Tomatometer score, and Metacritic Metascore directly inside Netflix's metadata row:
 
@@ -119,6 +124,7 @@ CritiPeek/
 ├── assets/
 │   ├── logo.png
 │   ├── preview-netflix-modal.jpg
+│   ├── preview-netflix-thumbnails.jpg
 │   └── preview-popup-settings.png
 ├── icons/
 │   ├── icon16.png
