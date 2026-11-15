@@ -4,11 +4,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const STORAGE_KEYS = {
     API_KEY: 'omdbApiKey',
-    ENABLED: 'extensionEnabled'
+    ENABLED: 'extensionEnabled',
+    BADGE_POSITION: 'badgePosition',
+    SHOW_IMDB: 'showImdb',
+    SHOW_RT: 'showRt',
+    SHOW_MC: 'showMetacritic',
+    QUOTA_EXCEEDED: 'omdbQuotaExceeded'
   };
 
   const extensionToggle = document.getElementById('extensionToggle');
   const toggleStateText = document.getElementById('toggleStateText');
+  const quotaAlertBanner = document.getElementById('quotaAlertBanner');
   const apiKeyForm = document.getElementById('apiKeyForm');
   const apiKeyInput = document.getElementById('apiKeyInput');
   const toggleVisibilityBtn = document.getElementById('toggleVisibilityBtn');
@@ -16,8 +22,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveKeyBtn = document.getElementById('saveKeyBtn');
   const apiStatusRow = document.getElementById('apiStatusRow');
   const apiStatusText = document.getElementById('apiStatusText');
+
+  const posTopLeftBtn = document.getElementById('posTopLeftBtn');
+  const posTopRightBtn = document.getElementById('posTopRightBtn');
+  const toggleImdbBtn = document.getElementById('toggleImdbBtn');
+  const toggleRtBtn = document.getElementById('toggleRtBtn');
+  const toggleMcBtn = document.getElementById('toggleMcBtn');
+
   const cacheCountEl = document.getElementById('cacheCount');
   const clearCacheBtn = document.getElementById('clearCacheBtn');
+
+  const prefs = {
+    badgePosition: 'top-left',
+    showImdb: true,
+    showRt: true,
+    showMetacritic: true
+  };
 
   /**
    * Sends a message to the background service worker safely.
@@ -34,6 +54,14 @@ document.addEventListener('DOMContentLoaded', () => {
         resolve(response);
       });
     });
+  }
+
+  /**
+   * Shows or hides the 1,000/day quota exhaustion alert banner.
+   * @param {boolean} exceeded
+   */
+  function setQuotaAlert(exceeded) {
+    quotaAlertBanner.hidden = !exceeded;
   }
 
   /**
@@ -65,6 +93,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /**
+   * Syncs customization button states with current preferences.
+   */
+  function syncCustomizationUI() {
+    const isTopRight = prefs.badgePosition === 'top-right';
+    posTopLeftBtn.setAttribute('aria-pressed', String(!isTopRight));
+    posTopRightBtn.setAttribute('aria-pressed', String(isTopRight));
+
+    toggleImdbBtn.setAttribute('aria-pressed', String(prefs.showImdb));
+    toggleRtBtn.setAttribute('aria-pressed', String(prefs.showRt));
+    toggleMcBtn.setAttribute('aria-pressed', String(prefs.showMetacritic));
+  }
+
+  /**
    * Tests the provided OMDb API key via background.js (pings tt3896198).
    * @param {string} apiKey
    */
@@ -82,19 +123,26 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (response.ok && response.valid) {
+      setQuotaAlert(false);
       setApiStatus('valid', 'Valid API key');
+    } else if (response.quotaExceeded) {
+      setQuotaAlert(true);
+      setApiStatus('invalid', 'Daily limit reached (1,000/day)');
     } else {
       setApiStatus('invalid', response.error || 'Invalid API key');
     }
   }
 
   /**
-   * Refreshes cached title count from background.js.
+   * Refreshes cached title count and quota status from background.js.
    */
   async function refreshCacheStats() {
     const response = await sendMessage({ type: 'GET_CACHE_STATS' });
     if (response && response.ok) {
       updateCacheCount(response.count);
+      if (typeof response.quotaExceeded === 'boolean') {
+        setQuotaAlert(response.quotaExceeded);
+      }
     }
   }
 
@@ -143,6 +191,49 @@ document.addEventListener('DOMContentLoaded', () => {
     await chrome.storage.local.set({ [STORAGE_KEYS.ENABLED]: enabled });
   });
 
+  posTopLeftBtn.addEventListener('click', async () => {
+    if (prefs.badgePosition === 'top-left') return;
+    prefs.badgePosition = 'top-left';
+    syncCustomizationUI();
+    await chrome.storage.local.set({ [STORAGE_KEYS.BADGE_POSITION]: 'top-left' });
+  });
+
+  posTopRightBtn.addEventListener('click', async () => {
+    if (prefs.badgePosition === 'top-right') return;
+    prefs.badgePosition = 'top-right';
+    syncCustomizationUI();
+    await chrome.storage.local.set({ [STORAGE_KEYS.BADGE_POSITION]: 'top-right' });
+  });
+
+  async function toggleRatingSource(key, storageKey) {
+    const nextValue = !prefs[key];
+    const activeCount =
+      (prefs.showImdb ? 1 : 0) +
+      (prefs.showRt ? 1 : 0) +
+      (prefs.showMetacritic ? 1 : 0);
+
+    // Keep at least one rating source enabled
+    if (!nextValue && activeCount <= 1) {
+      return;
+    }
+
+    prefs[key] = nextValue;
+    syncCustomizationUI();
+    await chrome.storage.local.set({ [storageKey]: nextValue });
+  }
+
+  toggleImdbBtn.addEventListener('click', () => {
+    toggleRatingSource('showImdb', STORAGE_KEYS.SHOW_IMDB);
+  });
+
+  toggleRtBtn.addEventListener('click', () => {
+    toggleRatingSource('showRt', STORAGE_KEYS.SHOW_RT);
+  });
+
+  toggleMcBtn.addEventListener('click', () => {
+    toggleRatingSource('showMetacritic', STORAGE_KEYS.SHOW_MC);
+  });
+
   apiKeyForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const apiKey = apiKeyInput.value.trim();
@@ -167,15 +258,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local') return;
+    if (Object.prototype.hasOwnProperty.call(changes, STORAGE_KEYS.QUOTA_EXCEEDED)) {
+      const info = changes[STORAGE_KEYS.QUOTA_EXCEEDED].newValue;
+      setQuotaAlert(Boolean(info && info.timestamp));
+    }
+  });
+
   async function init() {
     const stored = await chrome.storage.local.get([
       STORAGE_KEYS.API_KEY,
-      STORAGE_KEYS.ENABLED
+      STORAGE_KEYS.ENABLED,
+      STORAGE_KEYS.BADGE_POSITION,
+      STORAGE_KEYS.SHOW_IMDB,
+      STORAGE_KEYS.SHOW_RT,
+      STORAGE_KEYS.SHOW_MC,
+      STORAGE_KEYS.QUOTA_EXCEEDED
     ]);
 
     const enabled = stored[STORAGE_KEYS.ENABLED] !== false;
     extensionToggle.checked = enabled;
     updateToggleLabel(enabled);
+
+    prefs.badgePosition = stored[STORAGE_KEYS.BADGE_POSITION] === 'top-right' ? 'top-right' : 'top-left';
+    prefs.showImdb = stored[STORAGE_KEYS.SHOW_IMDB] !== false;
+    prefs.showRt = stored[STORAGE_KEYS.SHOW_RT] !== false;
+    prefs.showMetacritic = stored[STORAGE_KEYS.SHOW_MC] !== false;
+    syncCustomizationUI();
+
+    const quotaInfo = stored[STORAGE_KEYS.QUOTA_EXCEEDED];
+    if (quotaInfo && typeof quotaInfo.timestamp === 'number') {
+      setQuotaAlert(Date.now() - quotaInfo.timestamp < 24 * 60 * 60 * 1000);
+    }
 
     const savedKey = typeof stored[STORAGE_KEYS.API_KEY] === 'string'
       ? stored[STORAGE_KEYS.API_KEY].trim()

@@ -40,7 +40,7 @@
     'details'
   ]);
 
-  /** @type {Map<string, { found: boolean, imdbRating: string|null, imdbID: string|null, rottenTomatoes: string|null, cachedAt: number }>} */
+  /** @type {Map<string, { found: boolean, imdbRating: string|null, imdbID: string|null, rottenTomatoes: string|null, metacritic: string|null, cachedAt: number }>} */
   const localCache = new Map();
 
   /** @type {WeakMap<Element, number>} */
@@ -50,6 +50,13 @@
   const boundCards = new WeakSet();
 
   let extensionEnabled = true;
+  const userPrefs = {
+    badgePosition: 'top-left',
+    showImdb: true,
+    showRt: true,
+    showMetacritic: true
+  };
+
   let cardScanRafId = null;
   const pendingScanRoots = new Set();
 
@@ -91,7 +98,7 @@
   }
 
   /**
-   * Validates whether a cache entry is within the 7-day TTL.
+   * Validates whether a cache entry is within the 7-day TTL and has the v1.1 schema.
    * @param {object|null|undefined} entry
    * @returns {boolean}
    */
@@ -99,7 +106,8 @@
     return Boolean(
       entry &&
       typeof entry.cachedAt === 'number' &&
-      Date.now() - entry.cachedAt < CACHE_TTL_MS
+      Date.now() - entry.cachedAt < CACHE_TTL_MS &&
+      Object.prototype.hasOwnProperty.call(entry, 'metacritic')
     );
   }
 
@@ -116,12 +124,16 @@
   }
 
   /**
-   * Hydrates the local in-memory cache and extensionEnabled setting from chrome.storage.local.
+   * Hydrates the local in-memory cache and user settings from chrome.storage.local.
    */
   async function initializeState() {
     try {
       const items = await chrome.storage.local.get(null);
       extensionEnabled = items.extensionEnabled !== false;
+      userPrefs.badgePosition = items.badgePosition === 'top-right' ? 'top-right' : 'top-left';
+      userPrefs.showImdb = items.showImdb !== false;
+      userPrefs.showRt = items.showRt !== false;
+      userPrefs.showMetacritic = items.showMetacritic !== false;
 
       for (const [key, value] of Object.entries(items)) {
         if (key.startsWith(CACHE_PREFIX) && isCacheFresh(value)) {
@@ -215,19 +227,27 @@
 
   /**
    * Builds the ratings badge DOM node safely without innerHTML.
-   * @param {{ imdbRating?: string|null, imdbID?: string|null, rottenTomatoes?: string|null }} data
+   * @param {{ imdbRating?: string|null, imdbID?: string|null, rottenTomatoes?: string|null, metacritic?: string|null }} data
    * @param {'card'|'modal'} variant
    * @param {Element} hostElement
    * @returns {HTMLElement|null}
    */
   function buildRatingsBadge(data, variant, hostElement) {
     if (!data) return null;
-    const hasImdb = Boolean(data.imdbRating);
-    const hasRt = Boolean(data.rottenTomatoes);
-    if (!hasImdb && !hasRt) return null;
+
+    const hasImdb = Boolean(data.imdbRating && userPrefs.showImdb);
+    const hasRt = Boolean(data.rottenTomatoes && userPrefs.showRt);
+    const hasMc = Boolean(data.metacritic && userPrefs.showMetacritic);
+
+    if (!hasImdb && !hasRt && !hasMc) return null;
 
     const badge = document.createElement('div');
-    badge.className = `nf-ratings-badge nf-ratings-badge--${variant}`;
+    const posClass = variant === 'card'
+      ? ` nf-ratings-badge--${userPrefs.badgePosition}`
+      : '';
+    badge.className = `nf-ratings-badge nf-ratings-badge--${variant}${posClass}`;
+
+    const sections = [];
 
     if (hasImdb) {
       const imdbUrl = data.imdbID ? `https://www.imdb.com/title/${data.imdbID}` : null;
@@ -288,14 +308,7 @@
       imdbScore.textContent = data.imdbRating;
       imdbNode.appendChild(imdbScore);
 
-      badge.appendChild(imdbNode);
-    }
-
-    if (hasImdb && hasRt) {
-      const divider = document.createElement('span');
-      divider.className = 'nf-ratings-divider';
-      divider.setAttribute('aria-hidden', 'true');
-      badge.appendChild(divider);
+      sections.push(imdbNode);
     }
 
     if (hasRt) {
@@ -313,8 +326,46 @@
       rtScore.textContent = data.rottenTomatoes;
       rtNode.appendChild(rtScore);
 
-      badge.appendChild(rtNode);
+      sections.push(rtNode);
     }
+
+    if (hasMc) {
+      const mcScoreNum = parseInt(String(data.metacritic).replace(/[^0-9]/g, ''), 10);
+      let tierClass = 'nf-ratings-mc-box--mixed';
+      if (!Number.isNaN(mcScoreNum)) {
+        if (mcScoreNum >= 61) {
+          tierClass = 'nf-ratings-mc-box--favorable';
+        } else if (mcScoreNum < 40) {
+          tierClass = 'nf-ratings-mc-box--unfavorable';
+        }
+      }
+
+      const mcNode = document.createElement('span');
+      mcNode.className = 'nf-ratings-item nf-ratings-mc';
+      mcNode.title = `Metacritic Metascore ${data.metacritic}/100`;
+
+      const mcBox = document.createElement('span');
+      mcBox.className = `nf-ratings-mc-box ${tierClass}`;
+      mcBox.textContent = data.metacritic;
+      mcNode.appendChild(mcBox);
+
+      const mcLabel = document.createElement('span');
+      mcLabel.className = 'nf-ratings-mc-label';
+      mcLabel.textContent = 'MC';
+      mcNode.appendChild(mcLabel);
+
+      sections.push(mcNode);
+    }
+
+    sections.forEach((sectionNode, idx) => {
+      if (idx > 0) {
+        const divider = document.createElement('span');
+        divider.className = 'nf-ratings-divider';
+        divider.setAttribute('aria-hidden', 'true');
+        badge.appendChild(divider);
+      }
+      badge.appendChild(sectionNode);
+    });
 
     return badge;
   }
@@ -343,12 +394,38 @@
 
     hostElement.setAttribute('data-ratings-injected', 'true');
     hostElement.dataset.ratingsTitle = normalizedTitle;
+    hostElement.dataset.ratingsVariant = variant;
 
     if (!data || !data.found) return;
 
     const badge = buildRatingsBadge(data, variant, hostElement);
     if (badge) {
       hostElement.appendChild(badge);
+    }
+  }
+
+  /**
+   * Re-renders all currently injected badges when display preferences change in popup.
+   */
+  function refreshRenderedBadges() {
+    if (!extensionEnabled) return;
+    const hosts = document.querySelectorAll('[data-ratings-injected="true"]');
+    for (const host of hosts) {
+      if (!host.isConnected) continue;
+      const existing = host.querySelector(':scope > .nf-ratings-badge');
+      if (existing) existing.remove();
+
+      const normalizedTitle = host.dataset.ratingsTitle;
+      const variant = host.dataset.ratingsVariant === 'modal' ? 'modal' : 'card';
+      if (!normalizedTitle) continue;
+
+      const cached = localCache.get(normalizedTitle);
+      if (cached && cached.found) {
+        const badge = buildRatingsBadge(cached, variant, host);
+        if (badge) {
+          host.appendChild(badge);
+        }
+      }
     }
   }
 
@@ -742,6 +819,7 @@
       el.removeAttribute('data-ratings-injected');
       delete el.dataset.ratingsTitle;
       delete el.dataset.ratingsPendingTitle;
+      delete el.dataset.ratingsVariant;
       el.classList.remove('nf-ratings-card-host');
     });
   }
@@ -804,6 +882,28 @@
         bindCardsInSubtree(document.body);
         processAllOpenModals();
       }
+    }
+
+    let prefsChanged = false;
+    if (Object.prototype.hasOwnProperty.call(changes, 'badgePosition')) {
+      userPrefs.badgePosition = changes.badgePosition.newValue === 'top-right' ? 'top-right' : 'top-left';
+      prefsChanged = true;
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'showImdb')) {
+      userPrefs.showImdb = changes.showImdb.newValue !== false;
+      prefsChanged = true;
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'showRt')) {
+      userPrefs.showRt = changes.showRt.newValue !== false;
+      prefsChanged = true;
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'showMetacritic')) {
+      userPrefs.showMetacritic = changes.showMetacritic.newValue !== false;
+      prefsChanged = true;
+    }
+
+    if (prefsChanged && extensionEnabled) {
+      refreshRenderedBadges();
     }
 
     for (const [key, change] of Object.entries(changes)) {

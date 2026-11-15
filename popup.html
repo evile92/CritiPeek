@@ -3,20 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Netflix Ratings Settings</title>
+  <title>RateFlix Settings</title>
   <style>
     :root {
       color-scheme: dark only;
-      --bg-canvas: #0f172a;
-      --bg-surface: #1e293b;
-      --bg-input: #0b1220;
-      --border-subtle: rgba(148, 163, 184, 0.22);
-      --border-strong: rgba(203, 213, 225, 0.35);
+      --bg-canvas: #0b0b0f;
+      --bg-surface: #14141b;
+      --bg-elevated: #1c1c26;
+      --bg-input: #07070a;
+      --border-subtle: rgba(255, 255, 255, 0.11);
+      --border-strong: rgba(255, 255, 255, 0.22);
       --text-primary: #f8fafc;
       --text-silver: #cbd5e1;
       --text-muted: #94a3b8;
+      --brand-crimson: #E50914;
+      --brand-crimson-hover: #f40612;
       --accent-gold: #F5C518;
       --accent-gold-hover: #eab308;
+      --accent-rt: #FA320A;
+      --accent-mc: #22C55E;
       --status-valid: #22c55e;
       --status-invalid: #ef4444;
       --status-pending: #f59e0b;
@@ -29,24 +34,25 @@
     }
 
     body {
-      width: 360px;
+      width: 368px;
       background-color: var(--bg-canvas);
       color: var(--text-primary);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       font-size: 13px;
       line-height: 1.45;
-      padding: 16px;
+      padding: 15px;
       -webkit-font-smoothing: antialiased;
     }
 
+    /* Header */
     .header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding-bottom: 14px;
+      padding-bottom: 13px;
       border-bottom: 1px solid var(--border-subtle);
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
 
     .brand {
@@ -56,32 +62,35 @@
       min-width: 0;
     }
 
-    .brand-icon {
-      width: 30px;
-      height: 30px;
-      border-radius: 8px;
-      background-color: rgba(245, 197, 24, 0.12);
-      border: 1px solid rgba(245, 197, 24, 0.35);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .brand-logo {
+      width: 36px;
+      height: 36px;
+      object-fit: contain;
       flex-shrink: 0;
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
     }
 
     .brand-title {
-      font-size: 15px;
-      font-weight: 700;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
       color: var(--text-primary);
       white-space: nowrap;
+      line-height: 1.15;
+    }
+
+    .brand-title-flix {
+      color: var(--brand-crimson);
     }
 
     .brand-subtitle {
       font-size: 11px;
       color: var(--text-muted);
       white-space: nowrap;
+      margin-top: 2px;
     }
 
-    /* Toggle Switch */
+    /* Global Switch */
     .switch-wrap {
       display: flex;
       align-items: center;
@@ -111,7 +120,7 @@
     .slider {
       position: absolute;
       inset: 0;
-      background-color: #334155;
+      background-color: #272733;
       border: 1px solid var(--border-subtle);
       border-radius: 999px;
       cursor: pointer;
@@ -131,27 +140,63 @@
     }
 
     .switch input:checked + .slider {
-      background-color: var(--accent-gold);
-      border-color: var(--accent-gold);
+      background-color: var(--brand-crimson);
+      border-color: var(--brand-crimson);
     }
 
     .switch input:checked + .slider::before {
-      background-color: #0f172a;
+      background-color: #ffffff;
       transform: translateX(18px);
     }
 
     .switch input:focus-visible + .slider {
-      outline: 2px solid var(--accent-gold);
+      outline: 2px solid var(--brand-crimson);
       outline-offset: 2px;
     }
 
-    /* Surface Sections */
+    /* Daily Quota Alert Banner */
+    .quota-alert {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      background-color: rgba(229, 9, 20, 0.12);
+      border: 1px solid rgba(229, 9, 20, 0.45);
+      border-radius: 8px;
+      padding: 10px 11px;
+      margin-bottom: 11px;
+    }
+
+    .quota-alert[hidden] {
+      display: none !important;
+    }
+
+    .quota-alert-icon {
+      color: #f87171;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .quota-alert-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fecaca;
+      line-height: 1.25;
+    }
+
+    .quota-alert-desc {
+      font-size: 11px;
+      color: #fca5a5;
+      margin-top: 2px;
+      line-height: 1.35;
+    }
+
+    /* Surface Panels */
     .panel {
       background-color: var(--bg-surface);
       border: 1px solid var(--border-subtle);
-      border-radius: 10px;
-      padding: 13px;
-      margin-bottom: 12px;
+      border-radius: 9px;
+      padding: 12px;
+      margin-bottom: 10px;
     }
 
     .panel-header {
@@ -163,18 +208,18 @@
     }
 
     .panel-title {
-      font-size: 12px;
-      font-weight: 600;
+      font-size: 11px;
+      font-weight: 700;
       color: var(--text-silver);
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.05em;
     }
 
     .helper-link {
       font-size: 11px;
       color: var(--accent-gold);
       text-decoration: none;
-      font-weight: 500;
+      font-weight: 600;
     }
 
     .helper-link:hover {
@@ -184,7 +229,7 @@
     .input-row {
       display: flex;
       gap: 6px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
 
     .input-group {
@@ -195,10 +240,10 @@
 
     .api-input {
       width: 100%;
-      height: 34px;
+      height: 33px;
       background-color: var(--bg-input);
       border: 1px solid var(--border-subtle);
-      border-radius: 7px;
+      border-radius: 6px;
       padding: 0 32px 0 10px;
       color: var(--text-primary);
       font-size: 13px;
@@ -221,8 +266,8 @@
       right: 4px;
       top: 50%;
       transform: translateY(-50%);
-      width: 26px;
-      height: 26px;
+      width: 25px;
+      height: 25px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -236,18 +281,18 @@
 
     .toggle-visibility-btn:hover {
       color: var(--text-primary);
-      background-color: rgba(148, 163, 184, 0.14);
+      background-color: rgba(255, 255, 255, 0.08);
     }
 
     .btn-primary {
-      height: 34px;
-      padding: 0 12px;
+      height: 33px;
+      padding: 0 13px;
       background-color: var(--accent-gold);
-      color: #0f172a;
+      color: #0b0b0f;
       border: none;
-      border-radius: 7px;
+      border-radius: 6px;
       font-size: 12px;
-      font-weight: 700;
+      font-weight: 800;
       cursor: pointer;
       white-space: nowrap;
       transition: background-color 150ms ease, opacity 150ms ease;
@@ -302,6 +347,108 @@
       background-color: var(--status-pending);
     }
 
+    /* Customization Controls */
+    .control-group {
+      margin-bottom: 10px;
+    }
+
+    .control-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .control-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .segmented-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      background-color: var(--bg-input);
+      padding: 3px;
+      border-radius: 7px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .seg-btn {
+      height: 27px;
+      border: none;
+      border-radius: 5px;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 150ms ease, color 150ms ease;
+    }
+
+    .seg-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .seg-btn[aria-pressed="true"] {
+      background-color: var(--brand-crimson);
+      color: #ffffff;
+    }
+
+    .sources-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .source-pill {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      height: 30px;
+      padding: 0 6px;
+      border-radius: 6px;
+      border: 1px solid var(--border-subtle);
+      background-color: var(--bg-input);
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      user-select: none;
+      transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease;
+    }
+
+    .source-pill:hover {
+      border-color: var(--border-strong);
+      color: var(--text-silver);
+    }
+
+    .source-pill[aria-pressed="true"] {
+      background-color: var(--bg-elevated);
+      border-color: rgba(255, 255, 255, 0.28);
+      color: var(--text-primary);
+    }
+
+    .source-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .source-dot--imdb {
+      background-color: var(--accent-gold);
+    }
+
+    .source-dot--rt {
+      background-color: var(--accent-rt);
+    }
+
+    .source-dot--mc {
+      background-color: var(--accent-mc);
+    }
+
     /* Cache Section */
     .cache-row {
       display: flex;
@@ -317,8 +464,8 @@
     }
 
     .cache-count {
-      font-size: 20px;
-      font-weight: 700;
+      font-size: 19px;
+      font-weight: 800;
       color: var(--text-primary);
       font-variant-numeric: tabular-nums;
     }
@@ -331,16 +478,16 @@
     .cache-ttl {
       font-size: 11px;
       color: var(--text-muted);
-      margin-top: 2px;
+      margin-top: 1px;
     }
 
     .btn-secondary {
-      height: 32px;
+      height: 30px;
       padding: 0 11px;
-      background-color: transparent;
+      background-color: var(--bg-elevated);
       color: var(--text-silver);
       border: 1px solid var(--border-strong);
-      border-radius: 7px;
+      border-radius: 6px;
       font-size: 12px;
       font-weight: 600;
       cursor: pointer;
@@ -349,9 +496,9 @@
     }
 
     .btn-secondary:hover:not(:disabled) {
-      background-color: rgba(203, 213, 225, 0.1);
+      background-color: rgba(229, 9, 20, 0.16);
       color: var(--text-primary);
-      border-color: rgba(203, 213, 225, 0.55);
+      border-color: rgba(229, 9, 20, 0.55);
     }
 
     .btn-secondary:disabled {
@@ -370,28 +517,33 @@
 <body>
   <header class="header">
     <div class="brand">
-      <div class="brand-icon" aria-hidden="true">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-          <path
-            fill="#F5C518"
-            d="M12 2.2l2.92 5.92 6.53.95-4.72 4.6 1.11 6.5L12 17.1l-5.84 3.07 1.11-6.5-4.72-4.6 6.53-.95L12 2.2z"
-          />
-        </svg>
-      </div>
+      <img src="icons/icon48.png" class="brand-logo" alt="RateFlix" width="36" height="36" />
       <div>
-        <h1 class="brand-title">Netflix Ratings</h1>
-        <p class="brand-subtitle">IMDb &amp; Rotten Tomatoes</p>
+        <h1 class="brand-title">Rate<span class="brand-title-flix">Flix</span></h1>
+        <p class="brand-subtitle">IMDb · Rotten Tomatoes · Metacritic</p>
       </div>
     </div>
 
     <div class="switch-wrap">
       <span id="toggleStateText" class="switch-label">On</span>
-      <label class="switch" aria-label="Enable Netflix Ratings extension">
+      <label class="switch" aria-label="Enable RateFlix extension">
         <input type="checkbox" id="extensionToggle" role="switch" checked />
         <span class="slider"></span>
       </label>
     </div>
   </header>
+
+  <div id="quotaAlertBanner" class="quota-alert" role="alert" hidden>
+    <svg class="quota-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+    <div>
+      <p class="quota-alert-title">Daily API Limit Reached (1,000/day)</p>
+      <p class="quota-alert-desc">Cached titles still work normally. New OMDb lookups resume when your daily quota resets.</p>
+    </div>
+  </div>
 
   <section class="panel" aria-labelledby="apiKeySectionTitle">
     <div class="panel-header">
@@ -433,6 +585,38 @@
     <div id="apiStatusRow" class="status-row" data-state="idle" aria-live="polite">
       <span class="status-dot" aria-hidden="true"></span>
       <span id="apiStatusText">Not configured</span>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="customizeSectionTitle">
+    <div class="panel-header">
+      <h2 id="customizeSectionTitle" class="panel-title">Badge Customization</h2>
+    </div>
+
+    <div class="control-group">
+      <span class="control-label">Thumbnail Position</span>
+      <div class="segmented-row" role="group" aria-label="Thumbnail badge position">
+        <button type="button" id="posTopLeftBtn" class="seg-btn" data-pos="top-left" aria-pressed="true">Top Left</button>
+        <button type="button" id="posTopRightBtn" class="seg-btn" data-pos="top-right" aria-pressed="false">Top Right</button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <span class="control-label">Displayed Ratings</span>
+      <div class="sources-grid" role="group" aria-label="Displayed rating sources">
+        <button type="button" id="toggleImdbBtn" class="source-pill" aria-pressed="true">
+          <span class="source-dot source-dot--imdb" aria-hidden="true"></span>
+          <span>IMDb</span>
+        </button>
+        <button type="button" id="toggleRtBtn" class="source-pill" aria-pressed="true">
+          <span class="source-dot source-dot--rt" aria-hidden="true"></span>
+          <span>Rotten T.</span>
+        </button>
+        <button type="button" id="toggleMcBtn" class="source-pill" aria-pressed="true">
+          <span class="source-dot source-dot--mc" aria-hidden="true"></span>
+          <span>Metacritic</span>
+        </button>
+      </div>
     </div>
   </section>
 

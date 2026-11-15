@@ -3,14 +3,16 @@
 const OMDB_BASE_URL = 'https://www.omdbapi.com/';
 const CACHE_PREFIX = 'rating_cache:';
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const QUOTA_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const REQUEST_TIMEOUT_MS = 8000;
 
 const STORAGE_KEYS = {
   API_KEY: 'omdbApiKey',
-  ENABLED: 'extensionEnabled'
+  ENABLED: 'extensionEnabled',
+  QUOTA_EXCEEDED: 'omdbQuotaExceeded'
 };
 
-/** @type {Map<string, { found: boolean, imdbRating: string|null, imdbID: string|null, rottenTomatoes: string|null, cachedAt: number }>} */
+/** @type {Map<string, { found: boolean, imdbRating: string|null, imdbID: string|null, rottenTomatoes: string|null, metacritic: string|null, cachedAt: number }>} */
 const memoryCache = new Map();
 
 /** @type {Map<string, Promise<object>>} */
@@ -43,15 +45,16 @@ function normalizeTitleKey(title) {
 }
 
 /**
- * Checks whether a cached entry is still within the 7-day TTL.
- * @param {{ cachedAt?: number } | null | undefined} entry
+ * Checks whether a cached entry is within the 7-day TTL and has the current v1.1 schema.
+ * @param {{ cachedAt?: number, metacritic?: string|null } | null | undefined} entry
  * @returns {boolean}
  */
 function isCacheFresh(entry) {
   return Boolean(
     entry &&
     typeof entry.cachedAt === 'number' &&
-    Date.now() - entry.cachedAt < CACHE_TTL_MS
+    Date.now() - entry.cachedAt < CACHE_TTL_MS &&
+    Object.prototype.hasOwnProperty.call(entry, 'metacritic')
   );
 }
 
@@ -73,6 +76,15 @@ async function getSettings() {
 }
 
 /**
+ * Checks if an OMDb error specifically indicates the 1,000/day request limit was reached.
+ * @param {string} errorMessage
+ * @returns {boolean}
+ */
+function isQuotaLimitError(errorMessage) {
+  return /request limit reached/i.test(String(errorMessage || ''));
+}
+
+/**
  * Identifies OMDb responses caused by missing/invalid API keys or quota exhaustion.
  * @param {string} errorMessage
  * @param {number} statusCode
@@ -84,9 +96,56 @@ function isAuthOrLimitError(errorMessage, statusCode) {
 }
 
 /**
+ * Persists daily quota exhaustion state so the popup can alert the user clearly.
+ * @param {string} errorMessage
+ */
+async function recordQuotaExceeded(errorMessage) {
+  try {
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.QUOTA_EXCEEDED]: {
+        timestamp: Date.now(),
+        message: errorMessage || 'Request limit reached!'
+      }
+    });
+  } catch {
+    // Ignore storage write errors
+  }
+}
+
+/**
+ * Clears the daily quota exhaustion flag when an OMDb call succeeds.
+ */
+async function clearQuotaExceeded() {
+  try {
+    await chrome.storage.local.remove(STORAGE_KEYS.QUOTA_EXCEEDED);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+/**
+ * Reads current daily quota exhaustion state, auto-expiring after 24 hours.
+ * @returns {Promise<boolean>}
+ */
+async function getQuotaExceededStatus() {
+  try {
+    const res = await chrome.storage.local.get(STORAGE_KEYS.QUOTA_EXCEEDED);
+    const info = res[STORAGE_KEYS.QUOTA_EXCEEDED];
+    if (!info || typeof info.timestamp !== 'number') return false;
+    if (Date.now() - info.timestamp < QUOTA_TTL_MS) {
+      return true;
+    }
+    await chrome.storage.local.remove(STORAGE_KEYS.QUOTA_EXCEEDED);
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Executes a single OMDb fetch with timeout protection.
  * @param {string} url
- * @returns {Promise<{ ok: boolean, status: number, data?: object, error?: string, isAuthOrLimit?: boolean }>}
+ * @returns {Promise<{ ok: boolean, status: number, data?: object, error?: string, isAuthOrLimit?: boolean, isQuotaLimit?: boolean }>}
  */
 async function fetchOmdbJson(url) {
   const controller = new AbortController();
@@ -110,7 +169,8 @@ async function fetchOmdbJson(url) {
         ok: false,
         status: response.status,
         error: apiError,
-        isAuthOrLimit: isAuthOrLimitError(apiError, response.status)
+        isAuthOrLimit: isAuthOrLimitError(apiError, response.status),
+        isQuotaLimit: isQuotaLimitError(apiError)
       };
     }
 
@@ -130,9 +190,9 @@ async function fetchOmdbJson(url) {
 }
 
 /**
- * Extracts IMDb and Rotten Tomatoes metrics from an OMDb title payload.
+ * Extracts IMDb, Rotten Tomatoes, and Metacritic metrics from an OMDb title payload.
  * @param {object} data
- * @returns {{ found: boolean, imdbRating: string|null, imdbID: string|null, rottenTomatoes: string|null }}
+ * @returns {{ found: boolean, imdbRating: string|null, imdbID: string|null, rottenTomatoes: string|null, metacritic: string|null }}
  */
 function extractRatingsFromOmdb(data) {
   const rawImdb = typeof data.imdbRating === 'string' ? data.imdbRating.trim() : '';
@@ -141,24 +201,35 @@ function extractRatingsFromOmdb(data) {
   const rawImdbId = typeof data.imdbID === 'string' ? data.imdbID.trim() : '';
   const imdbID = /^tt\d+$/i.test(rawImdbId) ? rawImdbId : null;
 
+  const rawMeta = typeof data.Metascore === 'string' ? data.Metascore.trim() : '';
+  let metacritic = rawMeta && rawMeta !== 'N/A' && /^\d+$/.test(rawMeta) ? rawMeta : null;
+
   let rottenTomatoes = null;
   if (Array.isArray(data.Ratings)) {
     for (const item of data.Ratings) {
-      if (item && item.Source === 'Rotten Tomatoes') {
+      if (!item || typeof item.Source !== 'string') continue;
+
+      if (item.Source === 'Rotten Tomatoes') {
         const value = typeof item.Value === 'string' ? item.Value.trim() : '';
         if (value && value !== 'N/A') {
           rottenTomatoes = value;
         }
-        break;
+      } else if (!metacritic && item.Source === 'Metacritic') {
+        const value = typeof item.Value === 'string' ? item.Value.trim() : '';
+        const match = value.match(/^(\d{1,3})\b/);
+        if (match) {
+          metacritic = match[1];
+        }
       }
     }
   }
 
   return {
-    found: Boolean(imdbRating || rottenTomatoes),
+    found: Boolean(imdbRating || rottenTomatoes || metacritic),
     imdbRating,
     imdbID,
-    rottenTomatoes
+    rottenTomatoes,
+    metacritic
   };
 }
 
@@ -178,12 +249,18 @@ async function fetchRatingsWithFallback(title, year, apiKey) {
     const yearResult = await fetchOmdbJson(yearUrl);
 
     if (yearResult.ok && yearResult.data.Response === 'True') {
+      await clearQuotaExceeded();
       return { ok: true, payload: extractRatingsFromOmdb(yearResult.data) };
     }
 
     const yearError = yearResult.data && yearResult.data.Error
       ? yearResult.data.Error
       : yearResult.error;
+
+    if (yearResult.isQuotaLimit || isQuotaLimitError(yearError)) {
+      await recordQuotaExceeded(yearError);
+      return { ok: false, error: yearError || 'Request limit reached!', quotaExceeded: true, cacheable: false };
+    }
 
     if (yearResult.isAuthOrLimit || isAuthOrLimitError(yearError, yearResult.status)) {
       return { ok: false, error: yearError || 'Invalid OMDb API key.', cacheable: false };
@@ -194,6 +271,7 @@ async function fetchRatingsWithFallback(title, year, apiKey) {
   const titleResult = await fetchOmdbJson(titleUrl);
 
   if (titleResult.ok && titleResult.data.Response === 'True') {
+    await clearQuotaExceeded();
     return { ok: true, payload: extractRatingsFromOmdb(titleResult.data) };
   }
 
@@ -201,18 +279,25 @@ async function fetchRatingsWithFallback(title, year, apiKey) {
     ? titleResult.data.Error
     : titleResult.error;
 
+  if (titleResult.isQuotaLimit || isQuotaLimitError(titleError)) {
+    await recordQuotaExceeded(titleError);
+    return { ok: false, error: titleError || 'Request limit reached!', quotaExceeded: true, cacheable: false };
+  }
+
   if (titleResult.isAuthOrLimit || isAuthOrLimitError(titleError, titleResult.status)) {
     return { ok: false, error: titleError || 'Invalid OMDb API key.', cacheable: false };
   }
 
   if (titleResult.ok && titleResult.data.Response === 'False') {
+    await clearQuotaExceeded();
     return {
       ok: true,
       payload: {
         found: false,
         imdbRating: null,
         imdbID: null,
-        rottenTomatoes: null
+        rottenTomatoes: null,
+        metacritic: null
       }
     };
   }
@@ -271,7 +356,11 @@ async function getRatings(rawTitle, year) {
   const fetchPromise = (async () => {
     const result = await fetchRatingsWithFallback(title, year, settings.apiKey);
     if (!result.ok) {
-      return { ok: false, error: result.error };
+      return {
+        ok: false,
+        error: result.error,
+        quotaExceeded: Boolean(result.quotaExceeded)
+      };
     }
 
     const cacheRecord = {
@@ -311,15 +400,26 @@ async function validateApiKey(apiKey) {
   const res = await fetchOmdbJson(testUrl);
 
   if (res.ok && res.data.Response === 'True') {
-    return { ok: true, valid: true };
+    await clearQuotaExceeded();
+    return { ok: true, valid: true, quotaExceeded: false };
   }
 
   const errorMsg = (res.data && res.data.Error) || res.error || 'Invalid OMDb API key.';
-  return { ok: true, valid: false, error: errorMsg };
+  const quotaExceeded = Boolean(res.isQuotaLimit || isQuotaLimitError(errorMsg));
+  if (quotaExceeded) {
+    await recordQuotaExceeded(errorMsg);
+  }
+
+  return {
+    ok: true,
+    valid: false,
+    quotaExceeded,
+    error: errorMsg
+  };
 }
 
 /**
- * Counts valid cached titles in chrome.storage.local and prunes expired entries.
+ * Counts valid cached titles in chrome.storage.local, prunes expired entries, and returns quota state.
  */
 async function getCacheStats() {
   const allItems = await chrome.storage.local.get(null);
@@ -340,7 +440,8 @@ async function getCacheStats() {
     await chrome.storage.local.remove(expiredKeys);
   }
 
-  return { ok: true, count: validCount };
+  const quotaExceeded = await getQuotaExceededStatus();
+  return { ok: true, count: validCount, quotaExceeded };
 }
 
 /**
