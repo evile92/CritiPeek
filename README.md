@@ -1,7 +1,7 @@
 <div align="center">
-  <img src="assets/logo.png" alt="RateFlix Logo" width="360" />
+  <img src="assets/logo.png" alt="CritiPeek Logo" width="360" />
 
-  # RateFlix
+  # CritiPeek
 
   **IMDb, Rotten Tomatoes & Metacritic ratings injected directly into the Netflix web interface.**
 
@@ -17,12 +17,12 @@
 ### Netflix Detail & Preview Modal Badge
 Displays IMDb score (with direct clickable link to IMDb), Rotten Tomatoes Tomatometer score, and Metacritic Metascore directly inside Netflix's metadata row:
 
-![RateFlix Badge on Netflix Modal](assets/preview-netflix-modal.jpg)
+![CritiPeek Badge on Netflix Modal](assets/preview-netflix-modal.jpg)
 
 ### Extension Settings Popup
-Dark-mode settings panel styled in the RateFlix cinema palette to configure and validate your OMDb API key, customize badge placement and visible rating sources, monitor daily API quota status, and manage the 7-day local cache:
+Dark-mode settings panel styled in the CritiPeek cinema palette to configure and validate your OMDb API key, customize badge placement and visible rating sources, monitor daily API quota status, and manage the 7-day local cache:
 
-![RateFlix Settings Popup](assets/preview-popup-settings.png)
+![CritiPeek Settings Popup](assets/preview-popup-settings.png)
 
 ---
 
@@ -72,7 +72,7 @@ Dark-mode settings panel styled in the RateFlix cinema palette to configure and 
    - Styles the dark translucent badge (`rgba(12, 12, 16, 0.90)` with `backdrop-filter: blur(6px)`), smooth `180ms` fade-in animation, IMDb gold accent (`#F5C518`), Rotten Tomatoes indicator (`#FA320A` for `>= 60%`, `#22C55E` for `< 60%`), and color-coded Metacritic Metascore box.
 
 5. **`popup.html` & `popup.js`**
-   - Styled in the RateFlix cinema palette (`#0b0b0f` obsidian, `#14141b` slate, `#E50914` crimson, `#F5C518` gold).
+   - Styled in the CritiPeek cinema palette (`#0b0b0f` obsidian, `#14141b` slate, `#E50914` crimson, `#F5C518` gold).
    - Stores your OMDb API key, global enable/disable toggle, thumbnail badge position, and active rating sources in `chrome.storage.local`.
    - Alerts you clearly if the 1,000/day free OMDb quota is reached.
 
@@ -84,7 +84,7 @@ Dark-mode settings panel styled in the RateFlix cinema palette to configure and 
 Clone or download this repository to your computer:
 
 ```bash
-git clone https://github.com/evile92/RateFlix.git
+git clone https://github.com/evile92/CritiPeek.git
 ```
 
 *(Or click **Code -> Download ZIP** on GitHub and extract the folder.)*
@@ -94,16 +94,16 @@ git clone https://github.com/evile92/RateFlix.git
 #### Opera / Opera GX
 1. Open `opera://extensions` in the address bar.
 2. Enable **Developer mode** (top-right toggle).
-3. Click **Load unpacked** and select the downloaded `RateFlix` folder.
+3. Click **Load unpacked** and select the downloaded `CritiPeek` folder.
 4. Pin the extension from the toolbar **Extensions** menu.
 
 #### Google Chrome / Edge / Brave
 1. Open `chrome://extensions` (or `edge://extensions` / `brave://extensions`).
 2. Enable **Developer mode** (top-right toggle).
-3. Click **Load unpacked** and select the downloaded `RateFlix` folder.
+3. Click **Load unpacked** and select the downloaded `CritiPeek` folder.
 
 ### Step 3: Add Your Free OMDb API Key
-1. Click the **RateFlix** clapperboard icon in your browser toolbar.
+1. Click the **CritiPeek** clapperboard icon in your browser toolbar.
 2. Click **Get free key** (or visit [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx)).
 3. Select **FREE! (1,000 daily limit)**, enter your email and a short usage description, then submit.
 4. **Open your email and click the activation link** from OMDb so the key becomes active.
@@ -115,7 +115,7 @@ git clone https://github.com/evile92/RateFlix.git
 ## Project Structure
 
 ```text
-RateFlix/
+CritiPeek/
 ├── assets/
 │   ├── logo.png
 │   ├── preview-netflix-modal.jpg
@@ -139,7 +139,7 @@ RateFlix/
 
 ## النسخة العربية
 
-### نبذة عن أداة RateFlix
+### نبذة عن أداة CritiPeek
 
 أداة خفيفة للمتصفح تعرض تقييمات **IMDb** و **Rotten Tomatoes** و **Metacritic** مباشرة داخل واجهة موقع **Netflix** (على الصور المصغرة وداخل نوافذ التفاصيل)، وتعمل على **Opera** و **Opera GX** و **Google Chrome** و **Edge** و **Brave**.
 

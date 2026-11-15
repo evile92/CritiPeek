@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "RateFlix — Netflix IMDb, RT & Metacritic Ratings",
-  "version": "1.1.0",
+  "name": "CritiPeek — Ratings for Netflix",
+  "version": "1.1.1",
   "description": "Displays IMDb, Rotten Tomatoes, and Metacritic ratings directly on Netflix thumbnails and detail modals.",
   "permissions": [
     "storage"
@@ -35,7 +35,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "RateFlix Settings",
+    "default_title": "CritiPeek Settings",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
